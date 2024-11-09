@@ -1,5 +1,6 @@
 {
   "name": "ncs-provider-cpp-tools",
+  "publisher": "doki-nordic",
   "displayName": "NCS Configuration Provider for C/C++ for Visual Studio Code",
   "description": "",
   "version": "0.0.1",

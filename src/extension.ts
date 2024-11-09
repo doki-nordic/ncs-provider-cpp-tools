@@ -1,55 +1,96 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import {CppToolsApi, Version, CustomConfigurationProvider, getCppToolsApi} from 'vscode-cpptools';
+import { CppToolsApi, Version, CustomConfigurationProvider, getCppToolsApi, SourceFileConfigurationItem, WorkspaceBrowseConfiguration } from 'vscode-cpptools';
 
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-
-	activateAsync(context);
-
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "ncs-provider-cpp-tools" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('ncs-provider-cpp-tools.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from NCS Configuration Provider for C/C++ for Visual Studio Code!');
-	});
-
-	context.subscriptions.push(disposable);
+    activateAsync(context);
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+
+}
+
+class MyProvider implements CustomConfigurationProvider {
+
+    public name: string = "ncs-provider";
+    public extensionId: string;
+
+    constructor(private context: vscode.ExtensionContext) {
+        console.log('Provider constructed', context.storageUri?.fsPath);
+        this.extensionId = context.extension.id;
+    }
+
+    async canProvideConfiguration(uri: vscode.Uri, token?: vscode.CancellationToken): Promise<boolean> {
+        console.log(`canProvideConfiguration: ${uri.toString()}`);
+        return true;
+    }
+
+    async canProvideBrowseConfiguration(token?: vscode.CancellationToken): Promise<boolean> {
+        console.log(`canProvideBrowseConfiguration`);
+        return true;
+    }
+
+    async canProvideBrowseConfigurationsPerFolder(token?: vscode.CancellationToken): Promise<boolean> {
+        console.log(`canProvideBrowseConfigurationsPerFolder`);
+        return true;
+    }
+
+    async provideConfigurations(uris: vscode.Uri[], token?: vscode.CancellationToken): Promise<SourceFileConfigurationItem[]> {
+        console.log(`provideConfigurations: ${uris.map(x => x.toString()).join(', ')}`);
+        let res: SourceFileConfigurationItem[] = [];
+        for (let uri of uris) {
+            res.push({
+                uri,
+                configuration: {
+                    defines: ['SOME=123', 'FUNC=aaaa'],
+                    includePath: ['C:\\work\\env\\ncs-provider-cpp-tools\\temp'],
+                    forcedInclude: [],
+                    standard: 'gnu17',
+                    intelliSenseMode: 'gcc-arm',
+                }
+            });
+        }
+        return res;
+    }
+
+    async provideBrowseConfiguration(token?: vscode.CancellationToken): Promise<WorkspaceBrowseConfiguration | null> {
+        console.log(`provideBrowseConfiguration`);
+        for (let folder of vscode.workspace.workspaceFolders ?? []) {
+            console.log(`    Workspace ${folder.index}: ${folder.name} = ${folder.uri.fsPath}`);
+        }
+        return {
+            browsePath: [
+                vscode.workspace.workspaceFolders![0].uri.fsPath,
+            ],
+            standard: 'gnu17',
+        };
+    }
+
+    async provideFolderBrowseConfiguration(uri: vscode.Uri, token?: vscode.CancellationToken): Promise<WorkspaceBrowseConfiguration | null> {
+        console.log(`provideFolderBrowseConfiguration: ${uri.fsPath}`);
+        return {
+            browsePath: [
+                vscode.workspace.workspaceFolders![0].uri.fsPath,
+            ],
+            standard: 'gnu17',
+        };
+    }
+
+    dispose() {
+        console.log("Dispose provider");
+    }
+}
 
 async function activateAsync(context: vscode.ExtensionContext) {
-	let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
-	console.log(api);
+    let api: CppToolsApi | undefined = await getCppToolsApi(Version.v6);
 
     if (api) {
-        if (api.notifyReady) {
-            // Inform cpptools that a custom config provider will be able to service the current workspace.
-            api.registerCustomConfigurationProvider(provider);
-
-            // Do any required setup that the provider needs.
-
-            // Notify cpptools that the provider is ready to provide IntelliSense configurations.
-            api.notifyReady(provider);
-        } else {
-            // Running on a version of cpptools that doesn't support v2 yet.
-            
-            // Do any required setup that the provider needs.
-
-            // Inform cpptools that a custom config provider will be able to service the current workspace.
-            api.registerCustomConfigurationProvider(provider);
-            api.didChangeCustomConfiguration(provider);
-        }
+        let provider = new MyProvider(context);
+        context.subscriptions.push(provider);
+        api.registerCustomConfigurationProvider(provider);
+        api.notifyReady(provider);
     }
 }
